@@ -1,6 +1,6 @@
 ---
 title: "BEE 4750/5750 Homework 2"
-author: "Your name here (your netID here)"
+author: "Sonjay Lake (svl24)"
 date: `j import Dates; Dates.Date(Dates.now())`
 weave_options:
     term: true
@@ -19,7 +19,63 @@ Pkg.instantiate()
 # Problem 1
 
 ## Problem 1.1
+```julia echo: false;
+using Plots
+function dissolved_oxygen(x)
+  ka = 0.55
+  kc = 0.35
+  kn=0.25
+  saturated_conc = 10
 
+  DO_inflow =7.5 *1000
+  DO_stream_1 = 5 * 1000
+  DO_stream_2 = 5 * 1000
+
+  CBOD_inflow =5 *1000
+  CBOD_stream1 = 50 * 1000
+  CBOD_stream2 = 45 * 1000
+
+  NBOD_inflow = 5 * 1000
+  NBOD_stream1 = 35 * 1000
+  NBOD_stream2 = 35 * 1000
+
+  flow_in = 100000 
+  flow_stream1 = 10000
+  flow_stream2 = 15000
+
+  velocity = 6000
+  
+  alpha1 = exp((-ka*x)/velocity)
+  alpha2 = (kc/(ka-kc))*(exp((-kc*x)/velocity)-exp((-ka*x)/velocity))
+  alpha3 = (kn/(ka-kn))*(exp((-kn*x/velocity))-exp((-ka*x)/velocity))
+
+  #x=0 defines the position at waste stream 1 inlet
+
+  if x <= 15
+    #only input from stream 1
+    DO_val = ((DO_inflow * flow_in) + (DO_stream_1 * flow_stream1)) / (flow_stream1 + flow_in)
+    final_cbod = (CBOD_inflow * flow_in) + (CBOD_stream1 * flow_stream1)
+    final_nbod = (NBOD_inflow * flow_in) + (NBOD_stream1 * flow_stream1)
+
+    #7.5 = intiial BOD concentration at river inlet
+    
+  elseif x >15
+    DO_val = ((DO_inflow * flow_in) + (DO_stream_1 * flow_stream1)) + (DO_stream_2 * flow_stream2)/ (flow_stream2 + flow_stream1 + flow_in)
+    final_cbod = (CBOD_inflow * flow_in) + (CBOD_stream1 * flow_stream1) + (CBOD_stream2 * flow_stream2)
+    final_nbod = (NBOD_inflow * flow_in) + (NBOD_stream1 * flow_stream1) + (NBOD_stream2 * flow_stream2)
+
+  end 
+
+return saturated_conc*(1-alpha1) + DO_val*(alpha1) - final_cbod*(alpha2) - final_nbod*(alpha3)
+#Should the initial DO from the stream be the same at x=0 (stream 1 mixes) If not how to calculate?
+
+#
+end 
+f = dissolved_oxygen
+
+plot(f,1,50)
+
+```
 ## Problem 1.2
 
 ## Problem 1.3
@@ -55,3 +111,7 @@ end
 ```
 
 # References
+```julia
+include("compile_report.jl")
+compile_report("solution-template.jmd", "html")
+```

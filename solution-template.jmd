@@ -19,72 +19,282 @@ Pkg.instantiate()
 # Problem 1
 
 ## Problem 1.1
-```julia echo: false;
+```julia; echo=false;
 using Plots
-function dissolved_oxygen(x)
+function dissolved_oxygen(x,DO_stream,CBOD_stream,NBOD_stream,flow_stream)
+  #flow stream is the total flow of the stream excluding the inlet at the river (one or both waste source flows)
   ka = 0.55
   kc = 0.35
   kn=0.25
-  saturated_conc = 10
+  saturated_conc = 10  #mg/l
+  
+  #concentrations measured in mg/L
 
-  DO_inflow =7.5 *1000
-  DO_stream_1 = 5 * 1000
-  DO_stream_2 = 5 * 1000
+  DO_inflow =7.5 
+  CBOD_inflow =5
+  NBOD_inflow = 5
 
-  CBOD_inflow =5 *1000
-  CBOD_stream1 = 50 * 1000
-  CBOD_stream2 = 45 * 1000
+  #flows measured in L/day
+  flow_in = 100000 *1000
 
-  NBOD_inflow = 5 * 1000
-  NBOD_stream1 = 35 * 1000
-  NBOD_stream2 = 35 * 1000
-
-  flow_in = 100000 
-  flow_stream1 = 10000
-  flow_stream2 = 15000
-
-  velocity = 6000
+  velocity = 6 #km/day
   
   alpha1 = exp((-ka*x)/velocity)
   alpha2 = (kc/(ka-kc))*(exp((-kc*x)/velocity)-exp((-ka*x)/velocity))
   alpha3 = (kn/(ka-kn))*(exp((-kn*x/velocity))-exp((-ka*x)/velocity))
 
-  #x=0 defines the position at waste stream 1 inlet
+  intial_DO  = ((DO_stream * flow_stream) + ( DO_inflow * flow_in )) / (flow_in+ flow_stream)
+  intial_BO = ((CBOD_inflow * flow_in) + (CBOD_stream * flow_stream)) / (flow_stream + flow_in)
+  intial_NBOD = ((NBOD_stream * flow_stream) + (NBOD_inflow * flow_in)) / (flow_stream + flow_in)
 
-  if x <= 15
-    #only input from stream 1
-    DO_val = ((DO_inflow * flow_in) + (DO_stream_1 * flow_stream1)) / (flow_stream1 + flow_in)
-    final_cbod = (CBOD_inflow * flow_in) + (CBOD_stream1 * flow_stream1)
-    final_nbod = (NBOD_inflow * flow_in) + (NBOD_stream1 * flow_stream1)
+  return (saturated_conc*(1-alpha1) + intial_DO*(alpha1) - intial_BO*(alpha2) - intial_NBOD*(alpha3))
 
-    #7.5 = intiial BOD concentration at river inlet
-    
-  elseif x >15
-    DO_val = ((DO_inflow * flow_in) + (DO_stream_1 * flow_stream1)) + (DO_stream_2 * flow_stream2)/ (flow_stream2 + flow_stream1 + flow_in)
-    final_cbod = (CBOD_inflow * flow_in) + (CBOD_stream1 * flow_stream1) + (CBOD_stream2 * flow_stream2)
-    final_nbod = (NBOD_inflow * flow_in) + (NBOD_stream1 * flow_stream1) + (NBOD_stream2 * flow_stream2)
 
-  end 
-
-return saturated_conc*(1-alpha1) + DO_val*(alpha1) - final_cbod*(alpha2) - final_nbod*(alpha3)
-#Should the initial DO from the stream be the same at x=0 (stream 1 mixes) If not how to calculate?
-
-#
 end 
-f = dissolved_oxygen
+vector = ones(50);
+#flows (L/day)
+flow_stream1 = 10000 * 1000;
+flow_stream2 = 15000 * 1000;
+flow_inlet = 100000 *1000;
 
-plot(f,1,50)
+flow_input_stream2 = flow_stream1 + flow_stream2;
+#flow concentrations (mg/L)
+CBOD_stream1 = 50;
+CBOD_stream2 = 45;
+CBOD_input_stream2 =((CBOD_stream1 * flow_stream1) + (CBOD_stream2 * flow_stream2)) / (flow_stream1 + flow_stream2);
 
+NBOD_stream1 = 35;
+NBOD_stream2 = 35;
+NBOD_input_stream2 = ((NBOD_stream1 * flow_stream1) + (NBOD_stream2 * flow_stream2)) / (flow_stream1 + flow_stream2);
+
+DO_stream1 = 5;
+DO_stream2 = 5;
+DO_input_stream2 = ((DO_stream1 * flow_stream1) + (DO_stream2 * flow_stream2)) / (flow_stream1 + flow_stream2);
+
+for k in eachindex(vector)
+  if k <= 15
+    vector[k] = dissolved_oxygen(k,DO_stream1,CBOD_stream1,NBOD_stream1,flow_stream1);
+  else 
+    vector[k] = dissolved_oxygen(k-15,DO_input_stream2,CBOD_input_stream2,NBOD_input_stream2,flow_input_stream2);
+  end 
+end 
+
+DO_x_zero = ((7.5*  flow_inlet) + (DO_stream1*flow_stream1))/(flow_stream1+flow_inlet);
+vector = cat(DO_x_zero,vector,dims=(1,1))
+y = vector;
+x = range(0,50);
+plot(x,y, xlabel="Distance (meters)",ylabel="DO Concentration (mg/L)",legend=false,
+title = "DO Concentration vs. Distance")
+ 
 ```
 ## Problem 1.2
 
+```julia; 
+function dummy()
+  closest = 25
+
+  for k in (26:51)
+    if min(abs(6-vector[k]),abs(6-vector[closest])) == abs(6-vector[k])
+      if vector[k] > 6
+        closest = k 
+      end
+    end
+  end
+  
+  return closest 
+end
+
+index = dummy()
+dist  =  index-1 #must take into account it starts at 0
+DO_recovery_value = vector[index]
+```
+
+Analyzing the values calculated using the model, the curve recovers to 6mg/L at approximately 50m from the origin, 
+or 35km from waste stream 2.
+
+
 ## Problem 1.3
 
-## Problem 1.4
+  Let's assume that a Z% removal of organic concentration results in
+NBOD and CBOD being decreased by those percentages. In order to determine
+the minimum level of treatment for the 4 mg/L constraint at waste stream 2,
+we will use the following equations:
 
+```math
+\begin{alignat*}{0}
+C_{x} = C_{s}*(1-a_{1})+ C_{0}*(a_{1}) - (1-Z)*B_{0}*(a_{2}) - (1-Z)*N_{0}*(a_{3})\\\\
+and \\\\
+\end{alignat*}{0}
+```
+Where Z is the percent removed and all other parameters are the same as from earlier.]
+This equation can be used in conjunction with the function from q 1.1 to find DO levels 
+across a range with varying levels of treatment.
+
+Revised Function:
+```julia
+function revised_oxygen(x,DO_stream,CBOD_stream,NBOD_stream,flow_stream,Z)
+  #flow stream is the total flow of the stream excluding the inlet at the river (one or both waste source flows)
+  ka = 0.55
+  kc = 0.35
+  kn=0.25
+  saturated_conc = 10  #mg/l
+  
+  #concentrations measured in mg/L
+
+  DO_inflow =7.5 
+  CBOD_inflow =5
+  NBOD_inflow = 5
+
+  #flows measured in L/day
+  flow_in = 100000 *1000
+
+  velocity = 6 #km/day
+  
+  alpha1 = exp((-ka*x)/velocity)
+  alpha2 = (kc/(ka-kc))*(exp((-kc*x)/velocity)-exp((-ka*x)/velocity))
+  alpha3 = (kn/(ka-kn))*(exp((-kn*x/velocity))-exp((-ka*x)/velocity))
+
+  intial_DO  = ((DO_stream * flow_stream) + ( DO_inflow * flow_in )) / (flow_in+ flow_stream)
+  intial_BO = ((CBOD_inflow * flow_in) + (CBOD_stream * flow_stream)) / (flow_stream + flow_in)
+  intial_NBOD = ((NBOD_stream * flow_stream) + (NBOD_inflow * flow_in)) / (flow_stream + flow_in)
+
+  return (saturated_conc*(1-alpha1) + intial_DO*(alpha1) - (1-Z)*intial_BO*(alpha2) - (1-Z)*intial_NBOD*(alpha3))
+
+
+end
+```
+
+The function takes a new parameter, Z, representing the percentage of organic waste removed.
+Now to model different possibilities:
+
+
+```julia
+
+removal_rate = range(start=0.1,step=0.1,stop=1) #varying levels of removal percentages,  increments by 10%
+concentrations = ones(50,length(removal_rate[:,1]));
+for rate in eachindex(removal_rate[:,1])
+  for k in eachindex(concentrations[:,1])
+    if k <= 15
+      concentrations[k,rate] = revised_oxygen(k,DO_stream1,CBOD_stream1,NBOD_stream1,flow_stream1,0);
+    else 
+      concentrations[k,rate] = revised_oxygen(k-15,DO_input_stream2,CBOD_input_stream2,NBOD_input_stream2,flow_input_stream2,removal_rate[rate]);
+    end 
+  end 
+end
+plot(concentrations,xlabel="Distance (meters)",ylabel="DO Concentration (mg/L)",title="DO Concentration vs. Distance",
+labels=["10% removal" "20% removal" "30% removal" "40% removal" "50% removal" "60% removal" "70% removal" "80% removal" "90% removal" "100% removal"])
+```
+
+Looking at the graph created, the lowest percent removal that prevents the DO level from dropping
+below 4 mg/L is around 25%.
+
+
+## Problem 1.4
+A similar method to problem 1.3 can be used, where the revised function is passed
+a Z parameter for both portions of the stream.
+
+```julia
+
+removal_rate = range(start=0.1,step=0.1,stop=1); #varying levels of removal percentages,  increments by 10%
+concentrations = ones(50,length(removal_rate[:,1]));
+for rate in eachindex(removal_rate[:,1])
+  for k in eachindex(concentrations[:,1])
+    if k <= 15
+      concentrations[k,rate] = revised_oxygen(k,DO_stream1,CBOD_stream1,NBOD_stream1,flow_stream1,removal_rate[rate]);
+    else 
+      concentrations[k,rate] = revised_oxygen(k-15,DO_input_stream2,CBOD_input_stream2,NBOD_input_stream2,flow_input_stream2,removal_rate[rate]);
+    end 
+  end 
+end
+plot(concentrations,xlabel="Distance (meters)",ylabel="DO Concentration (mg/L)",title="DO Concentration vs. Distance",
+labels=["10% removal" "20% removal" "30% removal" "40% removal" "50% removal" "60% removal" "70% removal" "80% removal" "90% removal" "100% removal"]);
+```
+Looking at the graphs, the minimum treatment to not go below 4 mg/L of DO is around 22% for both streams.
 ## Problem 1.5
+To make a solid conclusion I would need information on how much it costs to treat each stream to a given percentage.
+However, with the given information, I think it would be best to treat stream 2 alone. This is because the model 
+created in the previous problems indicates that treating stream 2 to a slightly higher percentage than both streams 
+1 and 2 equally meets the constraints. Assuming that treating both streams has equal cost, treating stream 2  alone would 
+yield similar results for a lower cost overall  (around 50% cheaper).
+
 
 ## Problem 1.6
+```julia
+
+
+#modified function to accept varying  CBOD and NBOD concentrations
+
+function revised_oxygen_v2(x,DO_stream,CBOD_stream,NBOD_stream,flow_stream,Z,NBOD_inflow,CBOD_inflow)
+  #flow stream is the total flow of the stream excluding the inlet at the river (one or both waste source flows)
+  ka = 0.55
+  kc = 0.35
+  kn=0.25
+  saturated_conc = 10  #mg/l
+  
+  #concentrations measured in mg/L
+
+  DO_inflow =7.5 
+  
+
+  #flows measured in L/day
+  flow_in = 100000 *1000
+
+  velocity = 6 #km/day
+  
+  alpha1 = exp((-ka*x)/velocity)
+  alpha2 = (kc/(ka-kc))*(exp((-kc*x)/velocity)-exp((-ka*x)/velocity))
+  alpha3 = (kn/(ka-kn))*(exp((-kn*x/velocity))-exp((-ka*x)/velocity))
+
+  intial_DO  = ((DO_stream * flow_stream) + ( DO_inflow * flow_in )) / (flow_in+ flow_stream)
+  intial_BO = ((CBOD_inflow * flow_in) + (CBOD_stream * flow_stream)) / (flow_stream + flow_in)
+  intial_NBOD = ((NBOD_stream * flow_stream) + (NBOD_inflow * flow_in)) / (flow_stream + flow_in)
+
+  return (saturated_conc*(1-alpha1) + intial_DO*(alpha1) - (1-Z)*intial_BO*(alpha2) - (1-Z)*intial_NBOD*(alpha3))
+end
+
+#Using the strategy from problem 1.5, the removal rate of 25% for the second stream is used.
+
+nbod = ones(100);
+cbod = ones(100);
+
+using Random;
+Random.seed!(1);
+
+Random.rand!(nbod,range(3,8));
+Random.rand!(cbod,range(4,7));
+
+concentrations = ones(50,length(eachindex(nbod)));
+
+for rate in eachindex(nbod)
+  for k in eachindex(concentrations[:,1])
+    if k <= 15
+      concentrations[k,rate] = revised_oxygen_v2(k,DO_stream1,CBOD_stream1,NBOD_stream1,flow_stream1,0,nbod[rate],cbod[rate]);
+    else 
+      concentrations[k,rate] = revised_oxygen_v2(k-15,DO_input_stream2,CBOD_input_stream2,NBOD_input_stream2,flow_input_stream2,0.5,nbod[rate],cbod[rate]);
+    end 
+  end 
+end
+
+
+
+total = 0
+function dummy_success()
+  successes = 0
+  for row in eachindex(concentrations[:,1])
+    if minimum(concentrations[:,row]) > 4.0
+      successes = successes + 1
+    end 
+  end 
+  return successes
+end 
+total = dummy_success()
+probability = total/100 #calculates the chance of the concentration being above 4mg/L given 100 seeded trials
+```
+
+Given the Monte Carlo simulation above, there is a 41% chance that the treatment method from earlier is successful with 
+varying levels of initial NBOD and CBOD.
+
+
 
 ## Problem 1.7
 
@@ -104,14 +314,54 @@ function sample_correlated_uniform(n, a, b, corr_coef=0.7)
   samples = (unif_samples .* [a[2] - a[1] b[2] - b[1]]) .+ [a[1] b[1]]
   return samples
 end
+
+nbod17 = sample_correlated_uniform(100, [0,3] , [0,8] );
+cbod17 = sample_correlated_uniform(100, [0,4] , [0,7] );
+
+concentrations17 = ones(50,length(eachindex(nbod)));
+
+for rate in eachindex(nbod17[:,1])
+  for k in eachindex(concentrations17[:,1])
+    if k <= 15
+      concentrations17[k,rate] = revised_oxygen_v2(k,DO_stream1,CBOD_stream1,NBOD_stream1,flow_stream1,0,nbod17[rate,1],cbod17[rate,1]);
+    else 
+      concentrations17[k,rate] = revised_oxygen_v2(k-15,DO_input_stream2,CBOD_input_stream2,NBOD_input_stream2,flow_input_stream2,0.5,nbod17[rate,1],cbod17[rate,1]);
+    end 
+  end 
+end
+
+total_17 = 0
+function dummy_success()
+  successes = 0
+  for row in eachindex(concentrations17[:,1])
+    if minimum(concentrations17[:,row]) > 4.0
+      successes = successes + 1
+    end 
+  end 
+  return successes
+end 
+total_17 = dummy_success();
+probability_17 = total/100; #calculates the chance of the concentration being above 4mg/L.
 ```
+
+The probability remains the same (0.41) despite the correlation. This is likely an error in my code, but given what I have calculated 
+this is what I can report.
+
 
 ## Problem 1.8
+When trying to select a strategy for which stream to treat and by how much, it's important to know 
+how effective the strategy is going to be. Uncertainty with the concentrations of various compounds 
+could be the difference between some treatments being completely ineffective or overkill. When thinking 
+of real life applications and the costs associated with treatments, this becomes even more crucial.
 
-```
+Furthermore, it is important to acknowledge the interactions between the compounds. Understanding the 
+initial NBOD and/or CBOD is crucial for properly calculating the DO later down stream. This means that 
+uncertainty in the first two could compound to even larger uncertainties throughout the entire system. 
+
+I would stick with the same strategy as in problem 1.5 despite the uncertainty because it has demonstrated
+solid performance over the other mentioned strategy in terms of treatment. However, I think I would need 
+a bit more information regarding the costs of treatment before making an actual decision.
+
 
 # References
-```julia
-include("compile_report.jl")
-compile_report("solution-template.jmd", "html")
-```
+Mohammed Aden - classmate
